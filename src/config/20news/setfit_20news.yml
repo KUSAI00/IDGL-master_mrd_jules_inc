@@ -23,6 +23,7 @@ hidden_size: 128
 # Bert configure
 use_bert: False
 use_distilbert: True
+freeze_bert: True
 
 # Regularization
 dropout: 0.5
@@ -63,7 +64,7 @@ grad_clipping: null
 grad_accumulated_steps: 1
 eary_stop_metric: 'acc'
 pretrain_epoch: 0
-max_iter: 10
+max_iter: 3
 eps_adj: 8e-3
 
 # Text data only
@@ -73,14 +74,14 @@ fix_vocab_embed: True
 word_embed_dim: 768
 top_word_vocab: 10000
 min_word_freq: 10
-max_seq_len: 512
+max_seq_len: 256
 word_dropout: 0.5
 rnn_dropout: 0.5
 no_gnn: False
 
 random_seed: 1234
 shuffle: True
-max_epochs: 10
+max_epochs: 5
 patience: 10
 verbose: -1
 print_every_epochs: 1

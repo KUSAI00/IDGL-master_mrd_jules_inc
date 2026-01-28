@@ -91,7 +91,7 @@ class Model(object):
         if self.config['data_type'] == 'text':
             if self.config.get('use_distilbert', False):
                 from .utils.bert_utils import DistilBertEmbeddings
-                w_embedding = DistilBertEmbeddings()
+                w_embedding = DistilBertEmbeddings(freeze=self.config.get('freeze_bert', False))
             else:
                 w_embedding = self._init_embedding(len(self.vocab_model.word_vocab), self.config['word_embed_dim'])
             self.network = self.net_module(self.config, w_embedding, self.vocab_model.word_vocab)
@@ -110,7 +110,7 @@ class Model(object):
         if self.config['data_type'] == 'text':
             if self.config.get('use_distilbert', False):
                 from .utils.bert_utils import DistilBertEmbeddings
-                w_embedding = DistilBertEmbeddings()
+                w_embedding = DistilBertEmbeddings(freeze=self.config.get('freeze_bert', False))
             else:
                 w_embedding = self._init_embedding(len(self.vocab_model.word_vocab), self.config['word_embed_dim'],
                                                pretrained_vecs=self.vocab_model.word_vocab.embeddings)
@@ -225,7 +225,11 @@ def train_batch(batch, network, vocab, criterion, forcing_ratio, rl_ratio, confi
     return loss, loss_value, metrics
 
 def accuracy(labels, output):
-    preds = output.max(1)[1].type_as(labels)
-    correct = preds.eq(labels).double()
-    correct = correct.sum().item()
+    if isinstance(output, torch.Tensor):
+        preds = output.max(1)[1].type_as(labels)
+        correct = preds.eq(labels).double()
+        correct = correct.sum().item()
+    else:
+        preds = np.argmax(output, axis=1)
+        correct = (preds == labels).sum()
     return correct / len(labels)

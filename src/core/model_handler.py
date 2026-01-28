@@ -1140,7 +1140,7 @@ class ModelHandler(object):
                 L = torch.diagflat(torch.sum(out_adj[i], -1)) - out_adj[i]
                 graph_loss.append(self.config['smoothness_ratio'] * torch.trace(torch.mm(features[i].transpose(-1, -2), torch.mm(L, features[i]))) / int(np.prod(out_adj.shape[1:])))
 
-            graph_loss = to_cuda(torch.Tensor(graph_loss), self.device)
+            graph_loss = to_cuda(torch.stack(graph_loss), self.device)
 
             ones_vec = to_cuda(torch.ones(out_adj.shape[:-1]), self.device)
             graph_loss += -self.config['degree_ratio'] * torch.matmul(ones_vec.unsqueeze(1), torch.log(torch.matmul(out_adj, ones_vec.unsqueeze(-1)) + Constants.VERY_SMALL_NUMBER)).squeeze(-1).squeeze(-1) / out_adj.shape[-1]
