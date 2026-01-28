@@ -47,7 +47,11 @@ class TextGraphRegression(nn.Module):
 
         if config.get('use_distilbert', False):
             self.ctx_rnn_encoder = None
-            self.bert_projection = nn.Linear(768, hidden_size)
+            self.bert_projection = nn.Sequential(
+                nn.Linear(768, hidden_size),
+                nn.ReLU(),
+                nn.Dropout(self.dropout)
+            )
         else:
             self.ctx_rnn_encoder = EncoderRNN(word_embed_dim, hidden_size, bidirectional=True, num_layers=1, rnn_type='lstm',
                               rnn_dropout=self.rnn_dropout, device=self.device)
@@ -224,7 +228,11 @@ class TextGraphClf(nn.Module):
 
         if config.get('use_distilbert', False):
             self.ctx_rnn_encoder = None
-            self.bert_projection = nn.Linear(768, hidden_size)
+            self.bert_projection = nn.Sequential(
+                nn.Linear(768, hidden_size),
+                nn.ReLU(),
+                nn.Dropout(self.dropout)
+            )
         else:
             self.ctx_rnn_encoder = EncoderRNN(word_embed_dim, hidden_size, bidirectional=True, num_layers=1, rnn_type='lstm',
                               rnn_dropout=self.rnn_dropout, device=self.device)
