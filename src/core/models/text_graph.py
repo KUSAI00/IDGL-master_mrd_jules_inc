@@ -77,7 +77,8 @@ class TextGraphRegression(nn.Module):
 
             if self.graph_learn:
                 graph_learn_fun = AnchorGraphLearner if self.scalable_run else GraphLearner
-                self.graph_learner = graph_learn_fun(word_embed_dim, config['graph_learn_hidden_size'],
+                graph_learn_input_dim = hidden_size if config.get('use_distilbert', False) else word_embed_dim
+                self.graph_learner = graph_learn_fun(graph_learn_input_dim, config['graph_learn_hidden_size'],
                                                 topk=config['graph_learn_topk'],
                                                 epsilon=config['graph_learn_epsilon'],
                                                 num_pers=config['graph_learn_num_pers'],
@@ -109,16 +110,15 @@ class TextGraphRegression(nn.Module):
 
 
     def compute_no_gnn_output(self, context, context_lens):
-        raw_context_vec = self.word_embed(context)
-        raw_context_vec = dropout(raw_context_vec, self.word_dropout, shared_axes=[-2], training=self.training)
-
         # Shape: [batch_size, hidden_size]
         if self.config.get('use_distilbert', False):
             context_mask = create_mask(context_lens, context.size(-1), device=self.device)
-            context_vec = self.word_embed.get_contextual_embeddings(inputs_embeds=raw_context_vec, attention_mask=context_mask)
+            context_vec = self.word_embed.get_contextual_embeddings(input_ids=context, attention_mask=context_mask)
             context_vec = self.bert_projection(context_vec)
             context_vec = context_vec[:, 0, :]
         else:
+            raw_context_vec = self.word_embed(context)
+            raw_context_vec = dropout(raw_context_vec, self.word_dropout, shared_axes=[-2], training=self.training)
             context_vec = self.ctx_rnn_encoder(raw_context_vec, context_lens)[1][0].squeeze(0)
 
         output = self.linear_out(context_vec).squeeze(-1)
@@ -165,15 +165,18 @@ class TextGraphRegression(nn.Module):
 
     def prepare_init_graph(self, context, context_lens):
         context_mask = create_mask(context_lens, context.size(-1), device=self.device)
-        # Shape: [batch_size, max_length, word_embed_dim]
-        raw_context_vec = self.word_embed(context)
-        raw_context_vec = dropout(raw_context_vec, self.word_dropout, shared_axes=[-2], training=self.training)
 
-        # Shape: [batch_size, max_length, hidden_size]
         if self.config.get('use_distilbert', False):
-            context_vec = self.word_embed.get_contextual_embeddings(inputs_embeds=raw_context_vec, attention_mask=context_mask)
+            # Shape: [batch_size, max_length, hidden_size]
+            context_vec = self.word_embed.get_contextual_embeddings(input_ids=context, attention_mask=context_mask)
             context_vec = self.bert_projection(context_vec)
+            # Use projected features as raw features for consistency in graph construction
+            raw_context_vec = context_vec
         else:
+            # Shape: [batch_size, max_length, word_embed_dim]
+            raw_context_vec = self.word_embed(context)
+            raw_context_vec = dropout(raw_context_vec, self.word_dropout, shared_axes=[-2], training=self.training)
+            # Shape: [batch_size, max_length, hidden_size]
             context_vec = self.ctx_rnn_encoder(raw_context_vec, context_lens)[0].transpose(0, 1)
 
         init_adj = self.compute_init_adj(raw_context_vec.detach(), self.config['input_graph_knn_size'], mask=context_mask)
@@ -261,7 +264,8 @@ class TextGraphClf(nn.Module):
 
             if self.graph_learn:
                 graph_learn_fun = AnchorGraphLearner if self.scalable_run else GraphLearner
-                self.graph_learner = graph_learn_fun(word_embed_dim, config['graph_learn_hidden_size'],
+                graph_learn_input_dim = hidden_size if config.get('use_distilbert', False) else word_embed_dim
+                self.graph_learner = graph_learn_fun(graph_learn_input_dim, config['graph_learn_hidden_size'],
                                                 topk=config['graph_learn_topk'],
                                                 epsilon=config['graph_learn_epsilon'],
                                                 num_pers=config['graph_learn_num_pers'],
@@ -293,16 +297,15 @@ class TextGraphClf(nn.Module):
 
 
     def compute_no_gnn_output(self, context, context_lens):
-        raw_context_vec = self.word_embed(context)
-        raw_context_vec = dropout(raw_context_vec, self.word_dropout, shared_axes=[-2], training=self.training)
-
         # Shape: [batch_size, hidden_size]
         if self.config.get('use_distilbert', False):
             context_mask = create_mask(context_lens, context.size(-1), device=self.device)
-            context_vec = self.word_embed.get_contextual_embeddings(inputs_embeds=raw_context_vec, attention_mask=context_mask)
+            context_vec = self.word_embed.get_contextual_embeddings(input_ids=context, attention_mask=context_mask)
             context_vec = self.bert_projection(context_vec)
             context_vec = context_vec[:, 0, :]
         else:
+            raw_context_vec = self.word_embed(context)
+            raw_context_vec = dropout(raw_context_vec, self.word_dropout, shared_axes=[-2], training=self.training)
             context_vec = self.ctx_rnn_encoder(raw_context_vec, context_lens)[1][0].squeeze(0)
 
         output = self.linear_out(context_vec)
@@ -351,15 +354,18 @@ class TextGraphClf(nn.Module):
 
     def prepare_init_graph(self, context, context_lens):
         context_mask = create_mask(context_lens, context.size(-1), device=self.device)
-        # Shape: [batch_size, max_length, word_embed_dim]
-        raw_context_vec = self.word_embed(context)
-        raw_context_vec = dropout(raw_context_vec, self.word_dropout, shared_axes=[-2], training=self.training)
 
-        # Shape: [batch_size, max_length, hidden_size]
         if self.config.get('use_distilbert', False):
-            context_vec = self.word_embed.get_contextual_embeddings(inputs_embeds=raw_context_vec, attention_mask=context_mask)
+            # Shape: [batch_size, max_length, hidden_size]
+            context_vec = self.word_embed.get_contextual_embeddings(input_ids=context, attention_mask=context_mask)
             context_vec = self.bert_projection(context_vec)
+            # Use projected features as raw features for consistency in graph construction
+            raw_context_vec = context_vec
         else:
+            # Shape: [batch_size, max_length, word_embed_dim]
+            raw_context_vec = self.word_embed(context)
+            raw_context_vec = dropout(raw_context_vec, self.word_dropout, shared_axes=[-2], training=self.training)
+            # Shape: [batch_size, max_length, hidden_size]
             context_vec = self.ctx_rnn_encoder(raw_context_vec, context_lens)[0].transpose(0, 1)
 
         init_adj = self.compute_init_adj(raw_context_vec.detach(), self.config['input_graph_knn_size'], mask=context_mask)
