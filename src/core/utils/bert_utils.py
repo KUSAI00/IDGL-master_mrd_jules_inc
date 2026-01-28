@@ -36,9 +36,17 @@ class DistilBertEmbeddings(torch.nn.Module):
                 param.requires_grad = False
         
     def forward(self, input_ids, attention_mask=None):
-        # input_ids: [batch_size, seq_len]
-        if attention_mask is None:
-            attention_mask = (input_ids != 0).long() # Assuming 0 is padding
-            
-        outputs = self.model(input_ids=input_ids, attention_mask=attention_mask)
+        # Return static embeddings
+        return self.model.embeddings.word_embeddings(input_ids)
+
+    def get_contextual_embeddings(self, input_ids=None, inputs_embeds=None, attention_mask=None):
+        if input_ids is not None:
+            if attention_mask is None:
+                attention_mask = (input_ids != 0).long() # Assuming 0 is padding
+            outputs = self.model(input_ids=input_ids, attention_mask=attention_mask)
+        elif inputs_embeds is not None:
+             outputs = self.model(inputs_embeds=inputs_embeds, attention_mask=attention_mask)
+        else:
+            raise ValueError("Either input_ids or inputs_embeds must be provided")
+
         return outputs.last_hidden_state

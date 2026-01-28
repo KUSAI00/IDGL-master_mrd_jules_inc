@@ -45,7 +45,10 @@ class TextGraphRegression(nn.Module):
                 param.requires_grad = False
 
 
-        self.ctx_rnn_encoder = EncoderRNN(word_embed_dim, hidden_size, bidirectional=True, num_layers=1, rnn_type='lstm',
+        if config.get('use_distilbert', False):
+            self.ctx_rnn_encoder = None
+        else:
+            self.ctx_rnn_encoder = EncoderRNN(word_embed_dim, hidden_size, bidirectional=True, num_layers=1, rnn_type='lstm',
                               rnn_dropout=self.rnn_dropout, device=self.device)
 
         self.linear_out = nn.Linear(hidden_size, 1, bias=False)
@@ -94,7 +97,10 @@ class TextGraphRegression(nn.Module):
                 self.graph_learner2 = None
 
         else:
-            print('[ Using RNN ]')
+            if not config.get('use_distilbert', False):
+                print('[ Using RNN ]')
+            else:
+                print('[ Using DistilBERT Contextual ]')
 
 
     def compute_no_gnn_output(self, context, context_lens):
@@ -102,7 +108,13 @@ class TextGraphRegression(nn.Module):
         raw_context_vec = dropout(raw_context_vec, self.word_dropout, shared_axes=[-2], training=self.training)
 
         # Shape: [batch_size, hidden_size]
-        context_vec = self.ctx_rnn_encoder(raw_context_vec, context_lens)[1][0].squeeze(0)
+        if self.config.get('use_distilbert', False):
+            context_mask = create_mask(context_lens, context.size(-1), device=self.device)
+            context_vec = self.word_embed.get_contextual_embeddings(inputs_embeds=raw_context_vec, attention_mask=context_mask)
+            context_vec = context_vec[:, 0, :]
+        else:
+            context_vec = self.ctx_rnn_encoder(raw_context_vec, context_lens)[1][0].squeeze(0)
+
         output = self.linear_out(context_vec).squeeze(-1)
         return torch.sigmoid(output)
 
@@ -152,7 +164,10 @@ class TextGraphRegression(nn.Module):
         raw_context_vec = dropout(raw_context_vec, self.word_dropout, shared_axes=[-2], training=self.training)
 
         # Shape: [batch_size, max_length, hidden_size]
-        context_vec = self.ctx_rnn_encoder(raw_context_vec, context_lens)[0].transpose(0, 1)
+        if self.config.get('use_distilbert', False):
+            context_vec = self.word_embed.get_contextual_embeddings(inputs_embeds=raw_context_vec, attention_mask=context_mask)
+        else:
+            context_vec = self.ctx_rnn_encoder(raw_context_vec, context_lens)[0].transpose(0, 1)
 
         init_adj = self.compute_init_adj(raw_context_vec.detach(), self.config['input_graph_knn_size'], mask=context_mask)
         return raw_context_vec, context_vec, context_mask, init_adj
@@ -204,7 +219,10 @@ class TextGraphClf(nn.Module):
                 param.requires_grad = False
 
 
-        self.ctx_rnn_encoder = EncoderRNN(word_embed_dim, hidden_size, bidirectional=True, num_layers=1, rnn_type='lstm',
+        if config.get('use_distilbert', False):
+            self.ctx_rnn_encoder = None
+        else:
+            self.ctx_rnn_encoder = EncoderRNN(word_embed_dim, hidden_size, bidirectional=True, num_layers=1, rnn_type='lstm',
                               rnn_dropout=self.rnn_dropout, device=self.device)
 
         self.linear_out = nn.Linear(hidden_size, nclass, bias=False)
@@ -256,7 +274,10 @@ class TextGraphClf(nn.Module):
                 self.graph_learner2 = None
 
         else:
-            print('[ Using RNN ]')
+            if not config.get('use_distilbert', False):
+                print('[ Using RNN ]')
+            else:
+                print('[ Using DistilBERT Contextual ]')
 
 
     def compute_no_gnn_output(self, context, context_lens):
@@ -264,7 +285,13 @@ class TextGraphClf(nn.Module):
         raw_context_vec = dropout(raw_context_vec, self.word_dropout, shared_axes=[-2], training=self.training)
 
         # Shape: [batch_size, hidden_size]
-        context_vec = self.ctx_rnn_encoder(raw_context_vec, context_lens)[1][0].squeeze(0)
+        if self.config.get('use_distilbert', False):
+            context_mask = create_mask(context_lens, context.size(-1), device=self.device)
+            context_vec = self.word_embed.get_contextual_embeddings(inputs_embeds=raw_context_vec, attention_mask=context_mask)
+            context_vec = context_vec[:, 0, :]
+        else:
+            context_vec = self.ctx_rnn_encoder(raw_context_vec, context_lens)[1][0].squeeze(0)
+
         output = self.linear_out(context_vec)
         output = F.log_softmax(output, dim=-1)
         return output
@@ -316,7 +343,10 @@ class TextGraphClf(nn.Module):
         raw_context_vec = dropout(raw_context_vec, self.word_dropout, shared_axes=[-2], training=self.training)
 
         # Shape: [batch_size, max_length, hidden_size]
-        context_vec = self.ctx_rnn_encoder(raw_context_vec, context_lens)[0].transpose(0, 1)
+        if self.config.get('use_distilbert', False):
+            context_vec = self.word_embed.get_contextual_embeddings(inputs_embeds=raw_context_vec, attention_mask=context_mask)
+        else:
+            context_vec = self.ctx_rnn_encoder(raw_context_vec, context_lens)[0].transpose(0, 1)
 
         init_adj = self.compute_init_adj(raw_context_vec.detach(), self.config['input_graph_knn_size'], mask=context_mask)
         return raw_context_vec, context_vec, context_mask, init_adj
