@@ -51,7 +51,8 @@ class TextGraphRegression(nn.Module):
             self.ctx_rnn_encoder = EncoderRNN(word_embed_dim, hidden_size, bidirectional=True, num_layers=1, rnn_type='lstm',
                               rnn_dropout=self.rnn_dropout, device=self.device)
 
-        self.linear_out = nn.Linear(hidden_size, 1, bias=False)
+        linear_in_dim = 768 if config.get('use_distilbert', False) else hidden_size
+        self.linear_out = nn.Linear(linear_in_dim, 1, bias=False)
         self.scalable_run = config.get('scalable_run', False)
 
 
@@ -59,9 +60,10 @@ class TextGraphRegression(nn.Module):
             print('[ Using TextGNN ]')
             if self.graph_module == 'gcn':
                 gcn_module = AnchorGCN if self.scalable_run else GCN
-                self.encoder = gcn_module(nfeat=hidden_size,
+                gcn_nfeat = 768 if config.get('use_distilbert', False) else hidden_size
+                self.encoder = gcn_module(nfeat=gcn_nfeat,
                                     nhid=hidden_size,
-                                    nclass=hidden_size,
+                                    nclass=linear_in_dim,
                                     graph_hops=config.get('graph_hops', 2),
                                     dropout=self.dropout,
                                     batch_norm=config.get('batch_norm', False))
@@ -225,7 +227,8 @@ class TextGraphClf(nn.Module):
             self.ctx_rnn_encoder = EncoderRNN(word_embed_dim, hidden_size, bidirectional=True, num_layers=1, rnn_type='lstm',
                               rnn_dropout=self.rnn_dropout, device=self.device)
 
-        self.linear_out = nn.Linear(hidden_size, nclass, bias=False)
+        linear_in_dim = 768 if config.get('use_distilbert', False) else hidden_size
+        self.linear_out = nn.Linear(linear_in_dim, nclass, bias=False)
 
         self.scalable_run = config.get('scalable_run', False)
 
@@ -236,9 +239,10 @@ class TextGraphClf(nn.Module):
 
             if self.graph_module == 'gcn':
                 gcn_module = AnchorGCN if self.scalable_run else GCN
-                self.encoder = gcn_module(nfeat=hidden_size,
+                gcn_nfeat = 768 if config.get('use_distilbert', False) else hidden_size
+                self.encoder = gcn_module(nfeat=gcn_nfeat,
                                     nhid=hidden_size,
-                                    nclass=hidden_size,
+                                    nclass=linear_in_dim,
                                     graph_hops=config.get('graph_hops', 2),
                                     dropout=self.dropout,
                                     batch_norm=config.get('batch_norm', False))
