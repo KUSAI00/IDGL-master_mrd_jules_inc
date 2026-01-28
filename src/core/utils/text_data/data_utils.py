@@ -19,10 +19,44 @@ def load_data(config):
         train_set, dev_set, test_set = load_mrd_data(file_path, data_split, config.get('data_seed', 1234))
     elif config['dataset_name'] == '20news':
         train_set, dev_set, test_set = load_20news_data(config['data_dir'], data_split, config.get('data_seed', 1234))
+    elif config['dataset_name'] == 'setfit_20news':
+        train_set, dev_set, test_set = load_setfit_20news_data(data_split, config.get('data_seed', 1234))
     else:
         raise ValueError('Unknown dataset_name: {}'.format(config['dataset_name']))
 
     return train_set, dev_set, test_set
+
+def load_setfit_20news_data(data_split, seed):
+    from datasets import load_dataset
+    dataset = load_dataset("SetFit/20_newsgroups")
+
+    train_ds = dataset['train']
+    test_ds = dataset['test']
+
+    def process(ds):
+        instances = []
+        for example in ds:
+            text = example['text'].lower()
+            word_list = tokenize(text)
+            label = example['label']
+            instances.append((word_list, label))
+        return instances
+
+    train_all = process(train_ds)
+    test_instances = process(test_ds)
+
+    # Split train into train/dev
+    train_ratio, dev_ratio = data_split
+    assert abs(train_ratio + dev_ratio - 1.0) < 1e-6
+    n_train = int(len(train_all) * train_ratio)
+
+    random_state = np.random.RandomState(seed)
+    random_state.shuffle(train_all)
+
+    train_instances = train_all[:n_train]
+    dev_instances = train_all[n_train:]
+
+    return train_instances, dev_instances, test_instances
 
 def load_mrd_data(file_path, data_split, seed):
     '''Loads the Movie Review Data (https://www.cs.cornell.edu/people/pabo/movie-review-data/).'''

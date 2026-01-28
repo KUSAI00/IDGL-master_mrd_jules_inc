@@ -118,8 +118,8 @@ class GraphLearner(nn.Module):
 
 
         if ctx_mask is not None:
-            attention = attention.masked_fill_(1 - ctx_mask.byte().unsqueeze(1), markoff_value)
-            attention = attention.masked_fill_(1 - ctx_mask.byte().unsqueeze(-1), markoff_value)
+            attention = attention.masked_fill_((ctx_mask == 0).unsqueeze(1), markoff_value)
+            attention = attention.masked_fill_((ctx_mask == 0).unsqueeze(-1), markoff_value)
 
         if self.epsilon is not None:
             attention = self.build_epsilon_neighbourhood(attention, self.epsilon, markoff_value)

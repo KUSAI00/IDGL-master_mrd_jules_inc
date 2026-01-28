@@ -225,7 +225,13 @@ def train_batch(batch, network, vocab, criterion, forcing_ratio, rl_ratio, confi
     return loss, loss_value, metrics
 
 def accuracy(labels, output):
-    preds = output.max(1)[1].type_as(labels)
-    correct = preds.eq(labels).double()
-    correct = correct.sum().item()
-    return correct / len(labels)
+    if isinstance(output, torch.Tensor):
+        preds = output.max(1)[1].type_as(labels)
+        correct = preds.eq(labels).double()
+        correct = correct.sum().item()
+        return correct / len(labels)
+    else:
+        # Numpy
+        preds = np.argmax(output, axis=1)
+        correct = (preds == labels).sum()
+        return correct / len(labels)
