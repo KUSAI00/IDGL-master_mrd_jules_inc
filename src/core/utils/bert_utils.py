@@ -40,4 +40,5 @@ class DistilBertEmbeddings(torch.nn.Module):
         return self.model.embeddings(input_ids)
 
     def get_contextual_embeddings(self, inputs_embeds, attention_mask):
-        return self.model(inputs_embeds=inputs_embeds, attention_mask=attention_mask).last_hidden_state
+        with torch.no_grad():
+             return self.model(inputs_embeds=inputs_embeds, attention_mask=attention_mask).last_hidden_state

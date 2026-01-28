@@ -69,7 +69,8 @@ class TextGraphRegression(nn.Module):
 
             if self.graph_learn:
                 graph_learn_fun = AnchorGraphLearner if self.scalable_run else GraphLearner
-                self.graph_learner = graph_learn_fun(word_embed_dim, config['graph_learn_hidden_size'],
+                graph_input_size = hidden_size if config.get('use_distilbert', False) else word_embed_dim
+                self.graph_learner = graph_learn_fun(graph_input_size, config['graph_learn_hidden_size'],
                                                 topk=config['graph_learn_topk'],
                                                 epsilon=config['graph_learn_epsilon'],
                                                 num_pers=config['graph_learn_num_pers'],
@@ -206,9 +207,14 @@ class TextGraphClf(nn.Module):
 
         if config.get('use_distilbert', False):
              self.ctx_encoder = self.word_embed.get_contextual_embeddings
+             if word_embed_dim != hidden_size:
+                 self.projection = nn.Linear(word_embed_dim, hidden_size)
+             else:
+                 self.projection = None
         else:
              self.ctx_rnn_encoder = EncoderRNN(word_embed_dim, hidden_size, bidirectional=True, num_layers=1, rnn_type='lstm',
                               rnn_dropout=self.rnn_dropout, device=self.device)
+             self.projection = None
 
         self.linear_out = nn.Linear(hidden_size, nclass, bias=False)
 
@@ -234,7 +240,8 @@ class TextGraphClf(nn.Module):
 
             if self.graph_learn:
                 graph_learn_fun = AnchorGraphLearner if self.scalable_run else GraphLearner
-                self.graph_learner = graph_learn_fun(word_embed_dim, config['graph_learn_hidden_size'],
+                graph_input_size = hidden_size if config.get('use_distilbert', False) else word_embed_dim
+                self.graph_learner = graph_learn_fun(graph_input_size, config['graph_learn_hidden_size'],
                                                 topk=config['graph_learn_topk'],
                                                 epsilon=config['graph_learn_epsilon'],
                                                 num_pers=config['graph_learn_num_pers'],
@@ -270,6 +277,10 @@ class TextGraphClf(nn.Module):
         if self.config.get('use_distilbert', False):
              context_mask = create_mask(context_lens, context.size(-1), device=self.device)
              last_hidden_state = self.ctx_encoder(raw_context_vec, attention_mask=context_mask)
+
+             if self.projection is not None:
+                 last_hidden_state = self.projection(last_hidden_state)
+
              # CLS token is at index 0
              context_vec = last_hidden_state[:, 0, :]
         else:
@@ -328,8 +339,28 @@ class TextGraphClf(nn.Module):
         # Shape: [batch_size, max_length, hidden_size]
         if self.config.get('use_distilbert', False):
              context_vec = self.ctx_encoder(raw_context_vec, attention_mask=context_mask)
+             if self.projection is not None:
+                 context_vec = self.projection(context_vec)
         else:
              context_vec = self.ctx_rnn_encoder(raw_context_vec, context_lens)[0].transpose(0, 1)
+
+        # We need raw_context_vec to match hidden_size if we use it later for graph learning?
+        # GraphLearner uses input_size. In original code, graph learner was initialized with word_embed_dim.
+        # But if we want to reduce size, we should probably project raw_context_vec too or change graph learner init.
+        # The prompt says "embeddings size 128".
+
+        if self.config.get('use_distilbert', False) and self.projection is not None:
+             # Also project the raw features used for graph construction if desired,
+             # OR we keep using the high dim features for graph construction but low dim for node features?
+             # User said "decrease the embedding and grapgh".
+             # Let's project raw_context_vec as well so everything downstream is 128.
+             raw_context_vec_proj = self.projection(raw_context_vec)
+             # But wait, raw_context_vec is detached in compute_init_adj call below.
+             # And GraphLearner is initialized with word_embed_dim in __init__.
+             # If we change hidden_size in config, GraphLearner2 uses hidden_size.
+             # GraphLearner1 uses word_embed_dim.
+             # We should probably return the projected vector as "raw_context_vec" effectively.
+             return raw_context_vec_proj, context_vec, context_mask, self.compute_init_adj(raw_context_vec_proj.detach(), self.config['input_graph_knn_size'], mask=context_mask)
 
         init_adj = self.compute_init_adj(raw_context_vec.detach(), self.config['input_graph_knn_size'], mask=context_mask)
         return raw_context_vec, context_vec, context_mask, init_adj
