@@ -6,6 +6,7 @@ from collections import defaultdict
 import numpy as np
 from nltk.tokenize import wordpunct_tokenize
 from sklearn import preprocessing
+from datasets import load_dataset
 
 from .vocab_utils import VocabModel
 
@@ -19,6 +20,8 @@ def load_data(config):
         train_set, dev_set, test_set = load_mrd_data(file_path, data_split, config.get('data_seed', 1234))
     elif config['dataset_name'] == '20news':
         train_set, dev_set, test_set = load_20news_data(config['data_dir'], data_split, config.get('data_seed', 1234))
+    elif config['dataset_name'] == 'setfit_20news':
+        train_set, dev_set, test_set = load_setfit_20news_data(config)
     else:
         raise ValueError('Unknown dataset_name: {}'.format(config['dataset_name']))
 
@@ -86,6 +89,44 @@ def load_20news_data(data_dir, data_split, seed):
 
     train_instances = train_dev_instances[:n_train]
     dev_instances = train_dev_instances[n_train:]
+    return train_instances, dev_instances, test_instances
+
+def load_setfit_20news_data(config):
+    dataset = load_dataset("SetFit/20_newsgroups")
+    train_dataset = dataset['train']
+    test_dataset = dataset['test']
+
+    # Split train to create dev set (e.g., 10%)
+    seed = config.get('data_seed', 1234)
+    train_dev_split = train_dataset.train_test_split(test_size=0.1, seed=seed)
+    train_split = train_dev_split['train']
+    dev_split = train_dev_split['test']
+    test_split = test_dataset
+
+    def process_split(split):
+        instances = []
+        seq_lens = []
+        for example in split:
+            text = example['text'].lower()
+            word_list = tokenize(text)
+            label = example['label']
+            instances.append([word_list, label])
+            seq_lens.append(len(word_list))
+        return instances, seq_lens
+
+    print("Processing train set...")
+    train_instances, train_seq_len = process_split(train_split)
+    print("Processing dev set...")
+    dev_instances, dev_seq_len = process_split(dev_split)
+    print("Processing test set...")
+    test_instances, test_seq_len = process_split(test_split)
+
+    all_seq_len = train_seq_len + dev_seq_len + test_seq_len
+    if all_seq_len:
+        print('[ Max seq length: {} ]'.format(np.max(all_seq_len)))
+        print('[ Min seq length: {} ]'.format(np.min(all_seq_len)))
+        print('[ Mean seq length: {} ]'.format(int(np.mean(all_seq_len))))
+
     return train_instances, dev_instances, test_instances
 
 def data_load_helper(data_dir):

@@ -48,6 +48,7 @@ class VocabModel(object):
         else:
             vocab_model = VocabModel(data_set, config)
             print('Saving vocab model to {}'.format(saved_vocab_file))
+            os.makedirs(os.path.dirname(saved_vocab_file), exist_ok=True)
             pickle.dump(vocab_model, open(saved_vocab_file, 'wb'))
         return vocab_model
 

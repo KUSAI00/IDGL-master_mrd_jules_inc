@@ -180,7 +180,7 @@ class TextGraphClf(nn.Module):
         # Shape
         word_embed_dim = config['word_embed_dim']
         hidden_size = config['hidden_size']
-        nclass = 20
+        nclass = config.get('num_class', 20)
 
         # Dropout
         self.dropout = config['dropout']
