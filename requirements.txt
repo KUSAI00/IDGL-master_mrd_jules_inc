@@ -1,0 +1,7 @@
+nltk
+numpy
+scipy
+PyYAML
+networkx
+scikit-learn
+argparse
