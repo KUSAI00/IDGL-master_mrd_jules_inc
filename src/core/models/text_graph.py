@@ -47,12 +47,12 @@ class TextGraphRegression(nn.Module):
 
         if config.get('use_distilbert', False):
             self.ctx_rnn_encoder = None
+            self.bert_projection = nn.Linear(768, hidden_size)
         else:
             self.ctx_rnn_encoder = EncoderRNN(word_embed_dim, hidden_size, bidirectional=True, num_layers=1, rnn_type='lstm',
                               rnn_dropout=self.rnn_dropout, device=self.device)
 
-        linear_in_dim = 768 if config.get('use_distilbert', False) else hidden_size
-        self.linear_out = nn.Linear(linear_in_dim, 1, bias=False)
+        self.linear_out = nn.Linear(hidden_size, 1, bias=False)
         self.scalable_run = config.get('scalable_run', False)
 
 
@@ -60,10 +60,9 @@ class TextGraphRegression(nn.Module):
             print('[ Using TextGNN ]')
             if self.graph_module == 'gcn':
                 gcn_module = AnchorGCN if self.scalable_run else GCN
-                gcn_nfeat = 768 if config.get('use_distilbert', False) else hidden_size
-                self.encoder = gcn_module(nfeat=gcn_nfeat,
+                self.encoder = gcn_module(nfeat=hidden_size,
                                     nhid=hidden_size,
-                                    nclass=linear_in_dim,
+                                    nclass=hidden_size,
                                     graph_hops=config.get('graph_hops', 2),
                                     dropout=self.dropout,
                                     batch_norm=config.get('batch_norm', False))
@@ -113,6 +112,7 @@ class TextGraphRegression(nn.Module):
         if self.config.get('use_distilbert', False):
             context_mask = create_mask(context_lens, context.size(-1), device=self.device)
             context_vec = self.word_embed.get_contextual_embeddings(inputs_embeds=raw_context_vec, attention_mask=context_mask)
+            context_vec = self.bert_projection(context_vec)
             context_vec = context_vec[:, 0, :]
         else:
             context_vec = self.ctx_rnn_encoder(raw_context_vec, context_lens)[1][0].squeeze(0)
@@ -168,6 +168,7 @@ class TextGraphRegression(nn.Module):
         # Shape: [batch_size, max_length, hidden_size]
         if self.config.get('use_distilbert', False):
             context_vec = self.word_embed.get_contextual_embeddings(inputs_embeds=raw_context_vec, attention_mask=context_mask)
+            context_vec = self.bert_projection(context_vec)
         else:
             context_vec = self.ctx_rnn_encoder(raw_context_vec, context_lens)[0].transpose(0, 1)
 
@@ -223,12 +224,12 @@ class TextGraphClf(nn.Module):
 
         if config.get('use_distilbert', False):
             self.ctx_rnn_encoder = None
+            self.bert_projection = nn.Linear(768, hidden_size)
         else:
             self.ctx_rnn_encoder = EncoderRNN(word_embed_dim, hidden_size, bidirectional=True, num_layers=1, rnn_type='lstm',
                               rnn_dropout=self.rnn_dropout, device=self.device)
 
-        linear_in_dim = 768 if config.get('use_distilbert', False) else hidden_size
-        self.linear_out = nn.Linear(linear_in_dim, nclass, bias=False)
+        self.linear_out = nn.Linear(hidden_size, nclass, bias=False)
 
         self.scalable_run = config.get('scalable_run', False)
 
@@ -239,10 +240,9 @@ class TextGraphClf(nn.Module):
 
             if self.graph_module == 'gcn':
                 gcn_module = AnchorGCN if self.scalable_run else GCN
-                gcn_nfeat = 768 if config.get('use_distilbert', False) else hidden_size
-                self.encoder = gcn_module(nfeat=gcn_nfeat,
+                self.encoder = gcn_module(nfeat=hidden_size,
                                     nhid=hidden_size,
-                                    nclass=linear_in_dim,
+                                    nclass=hidden_size,
                                     graph_hops=config.get('graph_hops', 2),
                                     dropout=self.dropout,
                                     batch_norm=config.get('batch_norm', False))
@@ -292,6 +292,7 @@ class TextGraphClf(nn.Module):
         if self.config.get('use_distilbert', False):
             context_mask = create_mask(context_lens, context.size(-1), device=self.device)
             context_vec = self.word_embed.get_contextual_embeddings(inputs_embeds=raw_context_vec, attention_mask=context_mask)
+            context_vec = self.bert_projection(context_vec)
             context_vec = context_vec[:, 0, :]
         else:
             context_vec = self.ctx_rnn_encoder(raw_context_vec, context_lens)[1][0].squeeze(0)
@@ -349,6 +350,7 @@ class TextGraphClf(nn.Module):
         # Shape: [batch_size, max_length, hidden_size]
         if self.config.get('use_distilbert', False):
             context_vec = self.word_embed.get_contextual_embeddings(inputs_embeds=raw_context_vec, attention_mask=context_mask)
+            context_vec = self.bert_projection(context_vec)
         else:
             context_vec = self.ctx_rnn_encoder(raw_context_vec, context_lens)[0].transpose(0, 1)
 
